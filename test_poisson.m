@@ -1,13 +1,14 @@
-k=4;
-rhs = @(x,y,z) sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
+k=6;
+rhs = @(x,y,z) -3*k*k*pi^2*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
 test_op;
-num_elems = [32,32,32];
+num_elems = [8,8,8];
 order = 7;
+mu = @(x,y,z)(1); % @water;
 
 %-----
 m = mgps.mesh(num_elems, @mgps.xform.identity);
 t1 = tic;
-m.initialize_leaves(order, op, rhs);
+m.initialize_leaves(order, op, rhs, mu);
 t2 = toc(t1);
 fprintf('Initialized leaves in %g secs\n', t2);
 
@@ -34,7 +35,7 @@ invdiag = 1./d;
 omega = 6/7;
 u = zeros(num_bdy,1);
 t1 = tic;
-for i=1:10
+for i=1:200
   res  = invdiag .* m.trace_residual(u);
   u = u + omega.*res;
   %r = norm(res);
@@ -54,6 +55,18 @@ fprintf('Solved leaf: %g secs\n', t2);
 r = norm(res);
 norm(r)
 
-nlin = m.nelems(1)*order +1
+nlin = m.nelems(1)*order +1;
 w = reshape(v, [nlin, nlin, nlin]);
-imagesc(w(:,:,(nlin-1)/2))
+imagesc(w(:,:,(nlin-1)/2)); colorbar;
+%slice(w, (nlin-3)/2, (nlin-3)/2, (nlin-3)/2); colorbar; 
+
+% function mu = water(x,y,z)
+%   r2 = (x.*x + y.*y + z.*z);
+%   if ( r2 < 0.36)
+%     mu = 80;
+%   elseif (r2 > 0.49)
+%     mu = 4;
+%   else
+%     mu = 80 - (80.0 - 4.0)/(0.49 - 0.36)*(r2 - 0.36);
+%   end
+% end 

@@ -350,18 +350,24 @@ classdef mesh < handle
       
     end
 
-    function initialize_leaves(self, order, op, rhs)
+    function initialize_leaves(self, order, op, rhs, mu)
       self.order = order;
       r = mgps.refel ( self.dim, order );
       self.refel = r;
             
+      if (nargin < 5)
+        disp('No mu')
+        mu = @(x,y,z)(1);
+      end
+
       num_elems  = prod(self.nelems);
       
       % loop over elements
       for e=1:num_elems
         % idx = self.get_node_indices (e, order);  % needed ?
         pts = self.element_nodes(e, r);
-        detJac = prod(0.5./self.nelems); %self.geometric_factors(refel, pts);
+        detJac = prod(0.5./(self.nelems(1))); %
+        % detJac = self.geometric_factors(r, pts);
 
         %% setup RHS
         if ( isnumeric(rhs) && isscalar(rhs) )
@@ -381,7 +387,11 @@ classdef mesh < handle
           if ( isa(op.(name{1}), 'function_handle') )
             A = A + feval(op.(name{1}), pts(:,1), pts(:,2), pts(:,3)) .* r.(name{1})(jac);
           elseif ( op.(name{1}) ~= 0 )
-            A = A + op.(name{1})(:) .*  r.(name{1})(detJac);
+            if ( strcmp(name{1},'dxx') || strcmp(name{1},'dyy') || strcmp(name{1},'dzz') )
+              A = A + op.(name{1})(:) .*  r.(name{1})(detJac) .* feval(mu, pts(:,1), pts(:,2), pts(:,3));
+            else
+              A = A + op.(name{1})(:) .*  r.(name{1})(detJac);
+            end
           end
         end
 
@@ -448,7 +458,14 @@ classdef mesh < handle
         %    compute D2N*u 
         re = mesh.D2N{e}*[u(bdy_idx); 1];
         r(bdy_idx) = r(bdy_idx) - re;
-      end % elem loop   
+      end % elem loop 
+      bdy_idx = [];
+      fid = mesh.get_global_boundary_faces();
+      for f=1:length(fid)
+        bdy_idx = [bdy_idx, ((fid(f)-1)*nnf+1):(fid(f)*nnf)];
+      end
+      r(bdy_idx) = 0;
+
     end % trace_residual
 
     function u = solve_leaf(mesh, trace)
@@ -585,7 +602,58 @@ classdef mesh < handle
         fid = [f1 f3 f2 f5 f4 f6];
       end
 
-    end
+    end % get_global_faces
+
+    function fid = get_global_boundary_faces(self)
+      if (self.dim == 2)
+        fid = zeros(self.nelems(1)*2 + self.nelems(2)*2,1);
+        f=0; idx=1;
+        for i=1:self.nelems(2)
+          fid(idx) = f+1; idx = idx+1;
+          fid(idx) = f+self.nelems(1)+1;idx = idx+1;
+          f = f + self.nelems(1) + 1;
+        end
+        for i=1:self.nelems(1)
+          f = f+1; fid(idx) = f;  idx = idx+1;
+        end
+        f = f + self.nelems(1)*(self.nelems(2)-2);
+        for i=1:self.nelems(1)
+          f = f+1; fid(idx) = f;  idx = idx+1;
+        end
+      else
+        nf = 2*( self.nelems(2)*self.nelems(3) + self.nelems(1)*self.nelems(3) + self.nelems(2)*self.nelems(3));
+        fid = zeros(nf,1);
+        f=0; idx=1;
+        %-- yz plane
+        for i=1:(self.nelems(2)*self.nelems(3))
+          fid(idx) = f+1; idx = idx+1;
+          fid(idx) = f+self.nelems(1)+1;idx = idx+1;
+          f = f + self.nelems(1) + 1;
+        end % done yz plane
+        %-- xz plane
+        for k=1:self.nelems(3)
+          for i=1:self.nelems(1)
+            f = f+1;
+            fid(idx) = f; idx = idx+1;
+          end
+          f = f + self.nelems(1)*(self.nelems(2)-1);
+          for i=1:self.nelems(1)
+            f = f+1;
+            fid(idx) = f; idx = idx+1;
+          end
+        end % done xz plane
+        %-- xy plane
+        for j=1:self.nelems(2)*self.nelems(1)
+          f = f+1;
+          fid(idx) = f; idx = idx+1;
+        end
+        f = f + self.nelems(1)*self.nelems(2)*(self.nelems(3)-1);
+        for j=1:self.nelems(2)*self.nelems(1)
+          f = f+1;
+          fid(idx) = f; idx = idx+1;
+        end
+      end % if
+    end % get_global_boundary_faces
 
     function idx = get_node_indices ( self, eid )
       % determine global node indices for a given element
@@ -624,7 +692,7 @@ classdef mesh < handle
       end
       
       p_mid = (idx - 0.5) .* h;
-      p_gll = refel.r * 0.5 * h;
+      p_gll = refel.r .* 0.5 * h;
       nodes = bsxfun(@plus, p_mid, p_gll) ;
       
       if ( self.dim == 2)

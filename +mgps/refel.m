@@ -71,12 +71,40 @@ classdef refel < handle
       I  = eye(elem.p);
 
       % interpolation operators
-      % r_hby2      = [0.5*(elem.r - 1); 0.5*(elem.r(2:end) + 1)];
+      r_hby2      = [0.5*(elem.r(2:order) - 1); 0.5*(elem.r(2:order) + 1)];
       % [_, r_2p]   = refel.cheb (2*elem.N);
       
       p = elem.p;
       p2 = elem.p*elem.p;
       p3 = elem.p*elem.p*elem.p;
+
+      Vr     = zeros (order-1, order-1);
+      % elem.Vg     = zeros (order+1, order+1);
+            
+      Vph     = zeros (order-1, 2*(order-1));
+			      
+      for i=1:elem.p
+        Vr(i,:)     = mgps.basis.polynomial (elem.r(2:order), 0, 0, i-1);
+      %           elem.gradVr(i,:) = homg.basis.gradient (elem.r, 0, 0, i-1);
+                
+      %           elem.Vg(i,:)     = homg.basis.polynomial (elem.g, 0, 0, i-1);
+      %           elem.gradVg(i,:) = homg.basis.gradient (elem.g, 0, 0, i-1);
+                
+        Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);
+			% 					Vpp(i,:)          = homg.basis.polynomial (r_2p,   0, 0, i-1);
+      end
+        
+      %       elem.Dr     = transpose(elem.Vr \ elem.gradVr);
+            
+      %       elem.Dg     = transpose(elem.Vr \ elem.gradVg);
+            
+      %       iVr         = elem.Vr \ eye(order+1);
+			% 			iVg         = elem.Vg \ eye(order+1);
+            
+      %       elem.q1d         = transpose (elem.Vr \ elem.Vg);  
+            
+			p_h_1d      = transpose (Vr \ Vph);  
+      %       elem.p_p_1d      = transpose (elem.Vr \ Vpp);  
       
       if (d == 2)
         elem.Dx = kron(I, elem.D);
@@ -133,6 +161,8 @@ classdef refel < handle
         elem.n = p3;
         elem.ni = length(elem.ii);
         elem.ne = length(elem.ee);
+
+        elem.Ph = kron(p_h_1d, p_h_1d);
 
         elem.I   = kron(kron(I, I), I);
         elem.Dx  = kron(kron(I, I), elem.D);
@@ -208,4 +238,3 @@ classdef refel < handle
   end % private methods
     
 end
-
