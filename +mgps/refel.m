@@ -53,12 +53,14 @@ classdef refel < handle
     % Prolongation 
     Ph      % interpolation from this element to its 4/8 children
     Pp      % interpolation from this element to its 2p version		
+    Pint
   end % properties 
     
   methods
     function elem = refel(d, order)
       % Setup a d-dimensional reference element 
       % order = polynomial order of the reference element
+      % disp('refel');
       
       elem.dim  = d;
       elem.N    = order;
@@ -72,7 +74,8 @@ classdef refel < handle
 
       % interpolation operators
       r_hby2      = [0.5*(elem.r(2:order) - 1); 0.5*(elem.r(2:order) + 1)];
-      % [_, r_2p]   = refel.cheb (2*elem.N);
+      r_hby2_mid  = [0.5*(elem.r(2:order) - 1); 0; 0.5*(elem.r(2:order) + 1)];
+      [~, r_2p]   = mgps.refel.cheb (2*elem.N);
       
       p = elem.p;
       p2 = elem.p*elem.p;
@@ -91,7 +94,8 @@ classdef refel < handle
       %           elem.gradVg(i,:) = homg.basis.gradient (elem.g, 0, 0, i-1);
                 
         Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);
-			% 					Vpp(i,:)          = homg.basis.polynomial (r_2p,   0, 0, i-1);
+        Vph_int(i,:)    = mgps.basis.polynomial (r_hby2_mid, 0, 0, i-1);
+			 	Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
       end
         
       %       elem.Dr     = transpose(elem.Vr \ elem.gradVr);
@@ -103,12 +107,13 @@ classdef refel < handle
             
       %       elem.q1d         = transpose (elem.Vr \ elem.Vg);  
             
-			p_h_1d      = transpose (Vr \ Vph);  
-      %       elem.p_p_1d      = transpose (elem.Vr \ Vpp);  
+			p_h_1d      = transpose (Vr \ Vph);
+      p_h_1d_int      = transpose (Vr \ Vph_int);
+      p_p_1d      = transpose (Vr \ Vpp);  
       
       if (d == 2)
         elem.Dx = kron(I, elem.D);
-        elem.Dy = kron(elem.D, I);
+        elem.Dy = kron(elem.D, I);mm
 
         elem.n = p2;
 
@@ -162,7 +167,7 @@ classdef refel < handle
         elem.ni = length(elem.ii);
         elem.ne = length(elem.ee);
 
-        elem.Ph = kron(p_h_1d, p_h_1d);
+        % elem.Ph = kron(p_h_1d, p_h_1d);
 
         elem.I   = kron(kron(I, I), I);
         elem.Dx  = kron(kron(I, I), elem.D);
@@ -175,6 +180,16 @@ classdef refel < handle
         elem.Dyz = elem.Dy * elem.Dz;
         elem.Dzz = kron(kron(elem.D2, I), I);
         elem.L = elem.Dxx + elem.Dyy + elem.Dzz;
+
+        % face interpolations ...
+        p1 = p_h_1d(1:end/2,:);
+        p2 = p_h_1d(end/2+1:end,:);
+        elem.Ph{1} = kron(p1, p1);
+        elem.Ph{3} = kron(p2, p1);
+        elem.Ph{2} = kron(p1, p2);
+        elem.Ph{4} = kron(p2, p2);
+        elem.Pp = kron(p_p_1d, p_p_1d);
+        elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
       end        
     end % refel constructor
 

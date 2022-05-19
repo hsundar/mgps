@@ -436,16 +436,20 @@ classdef mesh < handle
         if (max(bdy_idx) > ndof)
           disp('exceeding bdy index');
         end
-        d(bdy_idx) = d(bdy_idx) + diag(mesh.D2N{e});
+        d(bdy_idx) = d(bdy_idx) - diag(mesh.D2N{e});
       end
     end
 
-    function r = trace_residual(mesh, u)
+    function r = trace_residual(mesh, u, rhs)
       % function r = trace_residual(mesh, u)
       num_elems  = prod(mesh.nelems);
       
       nnf = mesh.refel.nnf;
 
+      if (nargin < 3)
+        rhs = zeros(size(u));
+      end
+      
       r = zeros(size(u));
       % loop over elements
       for e=1:num_elems
@@ -459,6 +463,7 @@ classdef mesh < handle
         re = mesh.D2N{e}*[u(bdy_idx); 1];
         r(bdy_idx) = r(bdy_idx) - re;
       end % elem loop 
+      r = r - rhs;
       bdy_idx = [];
       fid = mesh.get_global_boundary_faces();
       for f=1:length(fid)
@@ -627,7 +632,7 @@ classdef mesh < handle
         %-- yz plane
         for i=1:(self.nelems(2)*self.nelems(3))
           fid(idx) = f+1; idx = idx+1;
-          fid(idx) = f+self.nelems(1)+1;idx = idx+1;
+          fid(idx) = f+self.nelems(1)+1; idx = idx+1;
           f = f + self.nelems(1) + 1;
         end % done yz plane
         %-- xz plane

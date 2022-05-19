@@ -1,7 +1,7 @@
 %% Problem specification  
 % discretization
 dim = 3; 
-nelems = [8,16];
+nelems = [8, 16];
 orders = [5];
 
 % operator 
@@ -11,8 +11,8 @@ op.dxy = 0; op.dyz = 0; op.dxz = 0;
 op.dx  = 0; op.dy  = 0; op.dz  = 0;
 op.b = 0;
 
-k=2;
-rhs = @(x,y,z) -12*pi^2*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
+k=3;
+rhs = @(x,y,z) -3*k*k*pi*pi*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
 mu = @(x,y,z)(1);
 bdy = @(x,y,z)(0);
 
@@ -52,4 +52,13 @@ grid.assemble_operators(op, mu, rhs, bdy);
 
 grid.is_finest = true;
 
+
+
 %% Solve 
+grid.set_smoother('jacobi');
+
+u = grid.get_u0();
+fx = grid.get_u0();
+
+% u = grid.smooth(200, fx, u);
+[u, rr, iter] = grid.solve(50, 'jacobi', 3, 3, fx, u);

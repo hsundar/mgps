@@ -1,8 +1,8 @@
 k=6;
 rhs = @(x,y,z) -3*k*k*pi^2*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
 test_op;
-num_elems = [8,8,8];
-order = 7;
+num_elems = [16,16,16];
+order = 5;
 mu = @(x,y,z)(1); % @water;
 
 %-----
@@ -35,11 +35,11 @@ invdiag = 1./d;
 omega = 6/7;
 u = zeros(num_bdy,1);
 t1 = tic;
-for i=1:200
+for i=1:20
   res  = invdiag .* m.trace_residual(u);
   u = u + omega.*res;
-  %r = norm(res);
-  %norm(r)
+  r = norm(res);
+  norm(r)
   %plot(u);
 end
 t2 = toc(t1);
