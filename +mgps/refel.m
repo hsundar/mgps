@@ -54,6 +54,7 @@ classdef refel < handle
     Ph      % interpolation from this element to its 4/8 children
     Pp      % interpolation from this element to its 2p version		
     Pint
+    pcf_idx  % child face indices on interpolated parent volume
   end % properties 
     
   methods
@@ -74,7 +75,9 @@ classdef refel < handle
 
       % interpolation operators
       r_hby2      = [0.5*(elem.r(2:order) - 1); 0.5*(elem.r(2:order) + 1)];
-      r_hby2_mid  = [0.5*(elem.r(2:order) - 1); 0; 0.5*(elem.r(2:order) + 1)];
+
+      r_hby2_chl  = [0.5*(elem.r(1:order) - 1); 0.5*(elem.r + 1)];
+      
       [~, r_2p]   = mgps.refel.cheb (2*elem.N);
       
       p = elem.p;
@@ -94,8 +97,10 @@ classdef refel < handle
       %           elem.gradVg(i,:) = homg.basis.gradient (elem.g, 0, 0, i-1);
                 
         Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);
-        Vph_int(i,:)    = mgps.basis.polynomial (r_hby2_mid, 0, 0, i-1);
-			 	Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
+        Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
+
+        Vph_par(i,:)    = mgps.basis.polynomial (elem.r, 0, 0, i-1);
+        Vph_chl(i,:)    = mgps.basis.polynomial (r_hby2_chl, 0, 0, i-1);
       end
         
       %       elem.Dr     = transpose(elem.Vr \ elem.gradVr);
@@ -108,7 +113,7 @@ classdef refel < handle
       %       elem.q1d         = transpose (elem.Vr \ elem.Vg);  
             
 			p_h_1d      = transpose (Vr \ Vph);
-      p_h_1d_int      = transpose (Vr \ Vph_int);
+      p_h_1d_int      = transpose (Vph_par \ Vph_chl);
       p_p_1d      = transpose (Vr \ Vpp);  
       
       if (d == 2)
@@ -189,8 +194,10 @@ classdef refel < handle
         elem.Ph{2} = kron(p1, p2);
         elem.Ph{4} = kron(p2, p2);
         elem.Pp = kron(p_p_1d, p_p_1d);
+        %% for prolongation 
         elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
-      end        
+        elem.compute_face_nodes();       
+      end 
     end % refel constructor
 
     function d = dxx(e, jac)
@@ -232,6 +239,163 @@ classdef refel < handle
     function d = b(e, jac)
       d = e.I;
     end
+
+    function idx = compute_face_nodes(r)
+      % gets child face indices for parent-level volume.
+      pp = 2*r.p - 1;
+      %=========== Child 1 =========== 
+      [i,j,k] = ndgrid(1, 2:r.p-1, 2:r.p-1); % 1,1
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,1} = sort(idx(:));
+      [i,j,k] = ndgrid(r.p, 2:r.p-1, 2:r.p-1); % 1,2
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,2} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, 1, 2:r.p-1); % 1,3
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,3} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, r.p, 2:r.p-1); % 1,4
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,4} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, 2:r.p-1, 1); % 1,5
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,5} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, 2:r.p-1, r.p); % 1,6
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{1,6} = sort(idx(:));
+      %=========== Child 2 ===========
+      [i,j,k] = ndgrid(r.p, 2:r.p-1, 2:r.p-1); % 2,1
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,1} = sort(idx(:));
+      [i,j,k] = ndgrid(pp, 2:r.p-1, 2:r.p-1); % 2,2
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,2} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), 1, 2:r.p-1); % 2,3
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,3} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), r.p, 2:r.p-1); % 2,4
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,4} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), 2:r.p-1, 1); % 2,5
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,5} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), 2:r.p-1, r.p); % 2,6
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{2,6} = sort(idx(:));
+      % Child 3  - (r.p+1):(pp-1)
+      [i,j,k] = ndgrid(1, (r.p+1):(pp-1), 2:r.p-1); % 3,1
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,1} = sort(idx(:));
+      [i,j,k] = ndgrid(r.p,(r.p+1):(pp-1), 2:r.p-1); % 3,2
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,2} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, r.p, 2:r.p-1); % 3,3
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,3} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, pp, 2:r.p-1); % 3,4
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,4} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, (r.p+1):(pp-1), 1); % 3,5
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,5} = sort(idx(:));
+      [i,j,k] = ndgrid(2:r.p-1, (r.p+1):(pp-1), r.p); % 3,6
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{3,6} = sort(idx(:));
+      % Child 4
+      [i,j,k] = ndgrid(r.p, (r.p+1):(pp-1), 2:r.p-1); % 4,1
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,1} = sort(idx(:));
+      [i,j,k] = ndgrid(pp, (r.p+1):(pp-1), 2:r.p-1); % 4,2
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,2} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), r.p, 2:r.p-1); % 4,3
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,3} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), pp, 2:r.p-1); % 4,4
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,4} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), (r.p+1):(pp-1), 1); % 4,5
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,5} = sort(idx(:));
+      [i,j,k] = ndgrid((r.p+1):(pp-1), (r.p+1):(pp-1), r.p); % 4,6
+      idx = sub2ind([pp, pp, pp], i, j, k);
+      r.pcf_idx{4,6} = sort(idx(:));
+          %=========== Child 5 =========== 
+          [i,j,k] = ndgrid(1, 2:r.p-1, (r.p+1):(pp-1)); % 1,1
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,1} = sort(idx(:));
+          [i,j,k] = ndgrid(r.p, 2:r.p-1, (r.p+1):(pp-1)); % 1,2
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,2} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, 1, (r.p+1):(pp-1)); % 1,3
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,3} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, r.p, (r.p+1):(pp-1)); % 1,4
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,4} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, 2:r.p-1, r.p); % 1,5
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,5} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, 2:r.p-1, pp); % 1,6
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{5,6} = sort(idx(:));
+          %=========== Child 6 ===========
+          [i,j,k] = ndgrid(r.p, 2:r.p-1, (r.p+1):(pp-1)); % 2,1
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,1} = sort(idx(:));
+          [i,j,k] = ndgrid(pp, 2:r.p-1, (r.p+1):(pp-1)); % 2,2
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,2} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), 1, (r.p+1):(pp-1)); % 2,3
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,3} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), r.p, (r.p+1):(pp-1)); % 2,4
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,4} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), 2:r.p-1, r.p); % 2,5
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,5} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), 2:r.p-1, pp); % 2,6
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{6,6} = sort(idx(:));
+          %========== Child 7 ================ 
+          [i,j,k] = ndgrid(1, (r.p+1):(pp-1), (r.p+1):(pp-1)); % 3,1
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,1} = sort(idx(:));
+          [i,j,k] = ndgrid(r.p,(r.p+1):(pp-1), (r.p+1):(pp-1)); % 3,2
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,2} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, r.p, (r.p+1):(pp-1)); % 3,3
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,3} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, pp, (r.p+1):(pp-1)); % 3,4
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,4} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, (r.p+1):(pp-1), r.p); % 3,5
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,5} = sort(idx(:));
+          [i,j,k] = ndgrid(2:r.p-1, (r.p+1):(pp-1), pp); % 3,6
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{7,6} = sort(idx(:));
+          % Child 8
+          [i,j,k] = ndgrid(r.p, (r.p+1):(pp-1), (r.p+1):(pp-1)); % 4,1
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,1} = sort(idx(:));
+          [i,j,k] = ndgrid(pp, (r.p+1):(pp-1), (r.p+1):(pp-1)); % 4,2
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,2} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), r.p, (r.p+1):(pp-1)); % 4,3
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,3} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), pp, (r.p+1):(pp-1)); % 4,4
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,4} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), (r.p+1):(pp-1), r.p); % 4,5
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,5} = sort(idx(:));
+          [i,j,k] = ndgrid((r.p+1):(pp-1), (r.p+1):(pp-1), pp); % 4,6
+          idx = sub2ind([pp, pp, pp], i, j, k);
+          r.pcf_idx{8,6} = sort(idx(:));
+      end
 
   end % methods
 

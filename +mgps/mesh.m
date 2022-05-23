@@ -17,6 +17,7 @@ classdef mesh < handle
     % elementwise Solution and D2N operators.
     S;
     D2N;
+    Ainv; % to update RHS
   end % properties
 
   methods
@@ -400,6 +401,7 @@ classdef mesh < handle
         Ainv = @(u) dA \ u;
         S = Ainv([-A(r.ii, r.ee), rhs_val(:)]);
 
+        self.Ainv = Ainv;
         % Append boundary points to solution operator:
         tmpS = zeros(r.n, size(S, 2));
         tmpS(r.ii,:) = S;
@@ -421,6 +423,24 @@ classdef mesh < handle
       end % element loop
     end % initialize leaves
 
+    function update_rhs(mesh, e, rhs)
+      r = mesh.refel;
+      rhs = rhs(r.ii);
+
+      S = mesh.Ainv(rhs);
+      % Append boundary points to solution operator:
+      tmpS = zeros(mesh.refel.n, 1);
+      tmpS(r.ii) = S;
+      
+      mesh.S{e}(:,end) = tmpS;
+      % D2N
+      mesh.D2N{e}(r.f1s,end)  = -r.Dx(r.f1, :) * tmpS;
+      mesh.D2N{e}(r.f2s,end)  = r.Dx(r.f2, :) * tmpS;
+      mesh.D2N{e}(r.f3s,end)  = -r.Dy(r.f3, :) * tmpS;
+      mesh.D2N{e}(r.f4s,end)  = r.Dy(r.f4, :) * tmpS;
+      mesh.D2N{e}(r.f5s,end)  = -r.Dz(r.f5, :) * tmpS;
+      mesh.D2N{e}(r.f6s,end)  = r.Dz(r.f6, :) * tmpS;
+    end
 
     function d = trace_diagonal(mesh)
       num_elems  = prod(mesh.nelems);

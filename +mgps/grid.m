@@ -175,8 +175,10 @@ classdef grid < handle
 %                 plot(u);
 %                 pause
                 u = grid.vcycle(v1, v2, rhs, u);
+                grid.plot_skel(u);
+                pause;
                 r = grid.residual(rhs, u);
-                disp([num2str(i, '%03d\t') ': |res| = ' num2str(norm(r),'\t%8.4e')]);
+                disp([num2str(i, '%03d\t') ': |res| = ' num2str(norm(r)/r0,'\t%8.4e')]);
                 if (norm(r)/r0 < 1e-8)
                     iter = i;
                     rr = norm(r)/r0;
@@ -208,16 +210,17 @@ classdef grid < handle
             res = grid.residual(rhs, u);
                 
             % 3. restrict
-            res_coarse = grid.restrict(res);
+            %res_coarse = 
+            grid.restrict(res);
             % res_coarse = grid.R * res;
             % res_coarse(grid.Coarse.Boundary) = 0;
             
             % 4. ---------- recurse -----------
-            u_corr_coarse = grid.Coarse.vcycle(v1, v2, res_coarse, zeros(size(res_coarse)));
+            u_corr_coarse = grid.Coarse.vcycle(v1, v2, grid.Coarse.get_u0(), grid.Coarse.get_u0());
             
             % 5. prolong and correct
             uc = grid.prolong( u_corr_coarse );
-            % u = u - uc;
+            u = u - grid.mergemap.pfac(grid.level)*uc;
            
             % 6. post-smooth
             u = grid.smooth ( v2, rhs, u );
@@ -322,8 +325,97 @@ classdef grid < handle
             u0 = zeros(num_bdy,1);
         end
                 
+        function r = prolong(grid, rc)
+            num_elem_c = grid.Coarse.Mesh.nelems;
+            num_elem_f = grid.Mesh.nelems;
+            nnf = grid.Mesh.refel.nnf;
+            forder = [1 3 2 5 4 6];
+            % for all elems - coarse
+            r = grid.get_u0();
+            for k=1:num_elem_c(3)
+                for j=1:num_elem_c(2)
+                    for i=1:num_elem_c(1)
+                        ep = sub2ind (num_elem_c, i, j, k);
+                        fid_p = grid.Coarse.Mesh.get_global_faces(ep);
+                        % use solution operator to get interior faces
+                        bdy_idx = [];
+                        % copy trace to element boundaries 
+                        for f=1:length(fid_p)
+                           bdy_idx = [bdy_idx, ((fid_p(f)-1)*nnf+1):(fid_p(f)*nnf)];
+                        end
+                        up = grid.Coarse.Mesh.S{ep}*[rc(bdy_idx); 1];
+                        upf = grid.Mesh.refel.Pint * up;
+                        %------------------------------ 
+                        ce(1) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k-1);
+                        ce(2) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k-1);
+                        ce(3) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k-1);
+                        ce(4) = sub2ind (num_elem_f, 2*i, 2*j, 2*k-1);
+                        ce(5) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k);
+                        ce(6) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k);
+                        ce(7) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k);
+                        ce(8) = sub2ind (num_elem_f, 2*i, 2*j, 2*k);
+                        for c=1:8
+                            fid_c = grid.Mesh.get_global_faces(ce(c));
+                            for f=1:3 
+                                % 3 shared faces with parent
+                                ff = forder(grid.mergemap.ploc(c,f));
+                                idx = grid.Mesh.refel.pcf_idx{c, grid.mergemap.ploc(c,f)};
+                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) + upf(idx);
+                                % 3 shared faces with siblings
+                                ff = forder(grid.mergemap.sloc(c,f));
+                                idx = grid.Mesh.refel.pcf_idx{c,grid.mergemap.sloc(c,f)};
+                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) + upf(idx); 
+                            end
+                        end
+                        
+                    end % i
+                end % j
+            end % k
+            % boundaries ?
+        end % function prolong 
 
-        function rc = restrict(grid, r)
+        function restrict(grid, r)
+            num_elem_c = grid.Coarse.Mesh.nelems;
+            num_elem_f = grid.Mesh.nelems;
+            nnf = grid.Mesh.refel.nnf;
+            forder = [1 3 2 5 4 6];
+            % for all elems - coarse
+           %  rc = grid.Coarse.get_u0();
+            for k=1:num_elem_c(3)
+                for j=1:num_elem_c(2)
+                    for i=1:num_elem_c(1)
+                        rc = zeros(nnf*6,1);
+                        ep = sub2ind (num_elem_c, i, j, k);
+                        % fid_p = grid.Coarse.Mesh.get_global_faces(ep);
+                        % for f=1:length(fid)
+                        %     bdy_idx_p = [bdy_idx_p, ((fid(f)-1)*nnf+1):(fid(f)*nnf)];
+                        % end
+                        ce(1) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k-1);
+                        ce(2) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k-1);
+                        ce(3) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k-1);
+                        ce(4) = sub2ind (num_elem_f, 2*i, 2*j, 2*k-1);
+                        ce(5) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k);
+                        ce(6) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k);
+                        ce(7) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k);
+                        ce(8) = sub2ind (num_elem_f, 2*i, 2*j, 2*k);
+                        for c=1:8
+                            fid_c = grid.Mesh.get_global_faces(ce(c));
+                            for f=1:3 % 3 shared faces with parent
+                                % restrict/prolong
+                                ff = forder(grid.mergemap.ploc(c,f));
+                                rc(((ff-1)*nnf+1):(ff*nnf)) = rc(((ff-1)*nnf+1):(ff*nnf)) + transpose(grid.Mesh.refel.Ph{grid.mergemap.igrid(c,f)}) * r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf));
+                            end
+                        end
+                        % grid.Mesh.refel.n
+                        rhs = grid.Coarse.Mesh.S{ep} * [rc; 1];
+                        grid.Coarse.Mesh.update_rhs(ep, rhs);
+                    end % i
+                end % j
+            end % k
+            
+        end % function restrict 
+
+        function rc = restrict_old(grid, r)
             num_elem_c = grid.Coarse.Mesh.nelems;
             num_elem_f = grid.Mesh.nelems;
             nnf = grid.Mesh.refel.nnf;
@@ -358,9 +450,9 @@ classdef grid < handle
                 end % j
             end % k
             %% zero out bdy ?
-        end % function restrict 
+        end % function restrict_old 
 
-        function r = prolong(grid, rc)
+        function r = prolong_old(grid, rc)
             num_elem_c = grid.Coarse.Mesh.nelems;
             num_elem_f = grid.Mesh.nelems;
             nnf = grid.Mesh.refel.nnf;
@@ -404,7 +496,7 @@ classdef grid < handle
                     end % i
                 end % j
             end % k
-        end % function restrict 
+        end % function prolong_old
 
         function plot_skel(grid, u)
           nelems = grid.Mesh.nelems;
