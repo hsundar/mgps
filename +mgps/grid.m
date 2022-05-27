@@ -8,6 +8,7 @@ classdef grid < handle
         order
         Mesh
         Coarse  % handle to coarse grid
+        Fine    % handle to fine Grid
         debug
         dbg_spaces
         
@@ -20,6 +21,8 @@ classdef grid < handle
         BoundaryPoints
 
         mergemap
+
+        pfac
     end % properties
     
     methods
@@ -30,11 +33,13 @@ classdef grid < handle
             else
                 grid.level = coarse.level + 1;
                 grid.Coarse = coarse;
+                coarse.Fine = grid;
             end
             
             grid.dbg_spaces = '      ';
             grid.dbg_spaces = grid.dbg_spaces(1:end-4*grid.level);
             grid.debug = 0;
+            grid.pfac = 1;
             
             grid.Mesh = mesh;
             grid.order = order;
@@ -105,17 +110,14 @@ classdef grid < handle
         end
                 
         % compute the residual
-        function r = residual(grid, rhs, u)
+        function r = residual(grid, u)
             % function r = residual(grid, u, rhs)
-            if ( nargin < 2 )
-                rhs = grid.L;
-            end
-            if ( nargin < 3 )
-                u = zeros(size(rhs));
-            end
-            
+%             if ( nargin < 2 )
+%                 u = grid.get_u0();
+%             end
+%             
             % r = rhs - grid.K*u;
-            r = grid.Mesh.trace_residual(u, rhs);
+            r = grid.Mesh.trace_residual(u);
 
             % grid.plot_skel(r); keyboard
         end
@@ -162,10 +164,10 @@ classdef grid < handle
             rr = norm(r)/r0;
         end
           
-        function [u, rr, iter] = solve(grid, num_vcyc, smoother, v1, v2, rhs, u)
+        function [u, rr, iter] = solve(grid, num_vcyc, smoother, v1, v2, u)
             grid.set_smoother(smoother);
             
-            r = grid.residual(rhs, u);
+            r = grid.residual(u);
             
             disp(['Initial residual is ' num2str(norm(r))]);
             disp('------------------------------------------');
@@ -174,11 +176,11 @@ classdef grid < handle
             for i=1:num_vcyc
 %                 plot(u);
 %                 pause
-                u = grid.vcycle(v1, v2, rhs, u);
-                grid.plot_skel(u);
-                pause;
-                r = grid.residual(rhs, u);
-                disp([num2str(i, '%03d\t') ': |res| = ' num2str(norm(r)/r0,'\t%8.4e')]);
+                u = grid.vcycle(v1, v2, u);
+                r = grid.residual(u);
+%                 grid.plot_skel(r);
+%                 pause
+                disp([num2str(i, '%03d\t') ': |res| = ' num2str(norm(r),'\t%8.4e')]);
                 if (norm(r)/r0 < 1e-8)
                     iter = i;
                     rr = norm(r)/r0;
@@ -191,7 +193,7 @@ classdef grid < handle
             rr = norm(r)/r0;
         end
         
-        function u = vcycle(grid, v1, v2, rhs, u)
+        function u = vcycle(grid, v1, v2, u)
             % function u = vcycle(grid, v1, v2, rhs, u)
             % solve system using initial guess u, given rhs
             % with v1 pre and v2 post-smoothing steps
@@ -199,71 +201,107 @@ classdef grid < handle
             
             if ( isempty( grid.Coarse ) )
                 % u = grid.K \ rhs;
-                u = grid.smooth(500, rhs, u);
+                %tstart = tic;
+                u = grid.smooth(20, u);
+                %tend = toc(tstart);
+                %fprintf('Coarse(st) time: %f \n', tend);
                 return;
             end
             
             % 1. pre-smooth
-            u = grid.smooth ( v1, rhs, u );
-                
+%             if grid.is_finest
+%             tstart = tic;
+%             end
+            u = grid.smooth ( v1, u );
+%             if grid.is_finest
+%             tend = toc(tstart);
+%             fprintf('Smooth time: %f \n', 2*tend);
+%             
+%             tstart = tic;
+%             end
             % 2. compute residual
-            res = grid.residual(rhs, u);
+            res = grid.residual(u);
                 
             % 3. restrict
             %res_coarse = 
             grid.restrict(res);
+
+%             if grid.is_finest
+%             tend = toc(tstart);
+%             fprintf('Restrict time: %f \n', tend);
+%             end
             % res_coarse = grid.R * res;
             % res_coarse(grid.Coarse.Boundary) = 0;
             
+%             res_coarse = grid.Coarse.residual();
+%             grid.Coarse.plot_skel(res_coarse);
+%             pause;
+            
             % 4. ---------- recurse -----------
-            u_corr_coarse = grid.Coarse.vcycle(v1, v2, grid.Coarse.get_u0(), grid.Coarse.get_u0());
-            
+%             if grid.is_finest
+%             tstart = tic;
+%             end
+            u_corr_coarse = grid.Coarse.vcycle(v1, v2, grid.Coarse.get_u0());
+%             if grid.is_finest
+%             tend = toc(tstart);
+%             fprintf('Coarse time: %f \n', tend);
+%             end
+
             % 5. prolong and correct
-            uc = grid.prolong( u_corr_coarse );
-            u = u - grid.mergemap.pfac(grid.level)*uc;
-           
-            % 6. post-smooth
-            u = grid.smooth ( v2, rhs, u );
-            % grid.plot_spectrum(u, 'g', rhs);
             
+%             if grid.is_finest
+%             tstart = tic;
+%             end
+            uc = grid.prolong( u_corr_coarse );
+            u = u - grid.pfac*uc; 
+%             if grid.is_finest
+%             tend = toc(tstart);
+%             fprintf('Prolong time: %f \n', tend);
+%             end
+
+            % 6. post-smooth
+            u = grid.smooth ( v2, u );
+        
+%             grid.plot_skel(u);
+%             pause;
         end % v-cycle
        
        % smoothers
-       function u = smooth (grid, v, rhs, u)
+       function u = smooth (grid, v, u)
         switch(grid.smoother)
             case 'jacobi',
-                u = grid.smoother_jacobi(v, rhs, u);
+                u = grid.smoother_jacobi(v, u);
                 return;
             case 'l1_jac',
-                u = grid.smoother_l1_jacobi(v, rhs, u);
+                u = grid.smoother_l1_jacobi(v, u);
                 return;
             case 'blk_jac',
-                u = grid.smoother_block_jacobi(v, rhs, u);
+                u = grid.smoother_block_jacobi(v, u);
                 return;
             case 'gs',
                 grid.sor_omega = 1.0;
-                u = grid.smoother_gauss_seidel(v, rhs, u);
+                u = grid.smoother_gauss_seidel(v, u);
                 return;
             case 'chebssor'
-                u = grid.smoother_chebyshev_ssor (v, rhs, u);
+                u = grid.smoother_chebyshev_ssor (v, u);
                 return;
             case 'chebyshev2'
-                u = grid.smoother_chebyshev2 (v, rhs, u);
+                u = grid.smoother_chebyshev2 (v, u);
                 return;
             case 'chebyshev',
-                u = grid.smoother_chebyshev(v, rhs, u);
+                u = grid.smoother_chebyshev(v, u);
                 return;
             case 'sor',
-                u = grid.smoother_sor(v, rhs, u);
+                u = grid.smoother_sor(v, u);
                 return;
             case 'ssor',
-                u = grid.smoother_sym_sor(v, rhs, u);
+                u = grid.smoother_sym_sor(v, u);
                 return;
             case '2sr',
-                u = grid.smoother_2sr(v, rhs, u);
+                u = grid.smoother_2sr(v, u);
                 return;
             case 'hybrid',
-                u = grid.smoother_hybrid(v, rhs, u);
+                u = grid.smoother_hybrid(v, u);
                 return;
             otherwise
                 disp('ERROR: Unrecognized smoother type');
@@ -278,15 +316,15 @@ classdef grid < handle
             end
         end
 
-        function u = smoother_jacobi (grid, v, rhs, u)
+        function u = smoother_jacobi (grid, v,  u)
             % standard jacobi smoother
             if ( isempty(grid.jacobi_invdiag) )
                 D = grid.Mesh.trace_diagonal();
                 grid.jacobi_invdiag = 1./D;
             end
             for i=1:v
-              res  = grid.residual(rhs, u);  
-            %   grid.plot_skel(res);
+              res  = grid.residual(u);  
+              % grid.plot_skel(res);
             %   pause
               %~~~~ DEBUG ~~~~
               % plot(res);
@@ -307,6 +345,8 @@ classdef grid < handle
               %norm(r)
             end
         end % jacobi
+
+        %% add other smoothers 
 
 
         function set_coeff(grid, mu)
@@ -378,6 +418,50 @@ classdef grid < handle
             num_elem_c = grid.Coarse.Mesh.nelems;
             num_elem_f = grid.Mesh.nelems;
             nnf = grid.Mesh.refel.nnf;
+            nr = grid.Mesh.refel.p;
+            forder = [1 3 2 5 4 6];
+
+            % for all elems - coarse
+            for k=1:num_elem_c(3)
+                for j=1:num_elem_c(2)
+                    for i=1:num_elem_c(1)
+                        % rc = zeros(nnf*6,1);
+                        %rcpp = zeros((2*grid.Mesh.refel.p - 1)^3,1);
+                        ep = sub2ind (num_elem_c, i, j, k);
+
+                        ce(1) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k-1);
+                        ce(2) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k-1);
+                        ce(3) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k-1);
+                        ce(4) = sub2ind (num_elem_f, 2*i, 2*j, 2*k-1);
+                        ce(5) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k);
+                        ce(6) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k);
+                        ce(7) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k);
+                        ce(8) = sub2ind (num_elem_f, 2*i, 2*j, 2*k);
+                        for c=1:8
+                            fid_c = grid.Mesh.get_global_faces(ce(c));
+                            bdy_idx = [];
+                            for f=1:length(fid_c)
+                                bdy_idx = [bdy_idx, ((fid_c(f)-1)*nnf+1):(fid_c(f)*nnf)];
+                            end
+                            rc = grid.Coarse.Mesh.S{ep}*[r(bdy_idx); 1];
+                       
+                            [ci, cj, ck] = ind2sub([2,2,2], c);
+                            % x(((ci-1)*(nr-1)+1):ci*(nr-1)+1)
+                            rcpp(((ci-1)*(nr-1)+1):ci*(nr-1)+1, ((cj-1)*(nr-1)+1):cj*(nr-1)+1, ((ck-1)*(nr-1)+1):ck*(nr-1)+1) = reshape(rc, [nr, nr, nr]);
+                        end
+                        rhs = grid.Mesh.refel.Rint * rcpp(:);
+                        % rhs = transpose(grid.Mesh.refel.Pint) * rcpp(:);
+                        grid.Coarse.Mesh.update_rhs(ep, rhs);
+                    end % i
+                end % j
+            end % k
+            
+        end % function restrict 
+
+        function restrict_fast(grid, r)
+            num_elem_c = grid.Coarse.Mesh.nelems;
+            num_elem_f = grid.Mesh.nelems;
+            nnf = grid.Mesh.refel.nnf;
             forder = [1 3 2 5 4 6];
             % for all elems - coarse
            %  rc = grid.Coarse.get_u0();
@@ -413,7 +497,7 @@ classdef grid < handle
                 end % j
             end % k
             
-        end % function restrict 
+        end % function restrict_fast 
 
         function rc = restrict_old(grid, r)
             num_elem_c = grid.Coarse.Mesh.nelems;
@@ -639,6 +723,78 @@ classdef grid < handle
           h9.EdgeColor = 'k';  
           title('z=end')
         end
+
+        function vol = solve_leaf(grid, u)
+            num_elem = grid.Mesh.nelems;
+            nnf = grid.Mesh.refel.nnf;
+            nr = grid.Mesh.refel.p;
+
+            for k=1:num_elem(3)
+                for j=1:num_elem(2)
+                    for i=1:num_elem(1)
+                        e = sub2ind (num_elem, i, j, k);
+                        fid_p = grid.Mesh.get_global_faces(e);
+                        % use solution operator to get interior faces
+                        bdy_idx = [];
+                        % copy trace to element boundaries 
+                        for f=1:length(fid_p)
+                           bdy_idx = [bdy_idx, ((fid_p(f)-1)*nnf+1):(fid_p(f)*nnf)];
+                        end
+                        uv = grid.Mesh.S{e}*[u(bdy_idx); 1];
+
+                        vol(((i-1)*(nr-1)+1):i*(nr-1)+1, ((j-1)*(nr-1)+1):j*(nr-1)+1, ((k-1)*(nr-1)+1):k*(nr-1)+1) = reshape(uv, [nr, nr, nr]);
+                    end %i
+                end %j 
+            end %k
+        end % solve leaf 
+
+        function r = fas(grid, rc)
+            num_elem = grid.Mesh.nelems;
+            nnf = grid.Mesh.refel.nnf;
+            forder = [1 3 2 5 4 6];
+            % for all elems 
+            r = grid.get_u0();
+            for k=1:num_elem_c(3)
+                for j=1:num_elem_c(2)
+                    for i=1:num_elem_c(1)
+                        ep = sub2ind (num_elem_c, i, j, k);
+                        fid_p = grid.Coarse.Mesh.get_global_faces(ep);
+                        % use solution operator to get interior faces
+                        bdy_idx = [];
+                        % copy trace to element boundaries 
+                        for f=1:length(fid_p)
+                           bdy_idx = [bdy_idx, ((fid_p(f)-1)*nnf+1):(fid_p(f)*nnf)];
+                        end
+                        up = grid.Coarse.Mesh.S{ep}*[rc(bdy_idx); 1];
+                        upf = grid.Mesh.refel.Pint * up;
+                        %------------------------------ 
+                        ce(1) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k-1);
+                        ce(2) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k-1);
+                        ce(3) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k-1);
+                        ce(4) = sub2ind (num_elem_f, 2*i, 2*j, 2*k-1);
+                        ce(5) = sub2ind (num_elem_f, 2*i-1, 2*j-1, 2*k);
+                        ce(6) = sub2ind (num_elem_f, 2*i, 2*j-1, 2*k);
+                        ce(7) = sub2ind (num_elem_f, 2*i-1, 2*j, 2*k);
+                        ce(8) = sub2ind (num_elem_f, 2*i, 2*j, 2*k);
+                        for c=1:8
+                            fid_c = grid.Mesh.get_global_faces(ce(c));
+                            for f=1:3 
+                                % 3 shared faces with parent
+                                ff = forder(grid.mergemap.ploc(c,f));
+                                idx = grid.Mesh.refel.pcf_idx{c, grid.mergemap.ploc(c,f)};
+                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) + upf(idx);
+                                % 3 shared faces with siblings
+                                ff = forder(grid.mergemap.sloc(c,f));
+                                idx = grid.Mesh.refel.pcf_idx{c,grid.mergemap.sloc(c,f)};
+                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) + upf(idx); 
+                            end
+                        end
+                        
+                    end % i
+                end % j
+            end % k
+            % boundaries ?
+        end % function fas 
 
     end %methods
     

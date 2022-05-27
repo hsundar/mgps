@@ -367,7 +367,7 @@ classdef mesh < handle
       for e=1:num_elems
         % idx = self.get_node_indices (e, order);  % needed ?
         pts = self.element_nodes(e, r);
-        detJac = prod(0.5./(self.nelems(1))); %
+        detJac = 0.5/(self.nelems(1)); %prod(0.5/(self.nelems(1))); %
         % detJac = self.geometric_factors(r, pts);
 
         %% setup RHS
@@ -460,15 +460,11 @@ classdef mesh < handle
       end
     end
 
-    function r = trace_residual(mesh, u, rhs)
+    function r = trace_residual(mesh, u)
       % function r = trace_residual(mesh, u)
       num_elems  = prod(mesh.nelems);
       
       nnf = mesh.refel.nnf;
-
-      if (nargin < 3)
-        rhs = zeros(size(u));
-      end
       
       r = zeros(size(u));
       % loop over elements
@@ -483,7 +479,6 @@ classdef mesh < handle
         re = mesh.D2N{e}*[u(bdy_idx); 1];
         r(bdy_idx) = r(bdy_idx) - re;
       end % elem loop 
-      r = r - rhs;
       bdy_idx = [];
       fid = mesh.get_global_boundary_faces();
       for f=1:length(fid)

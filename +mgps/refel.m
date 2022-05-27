@@ -54,6 +54,7 @@ classdef refel < handle
     Ph      % interpolation from this element to its 4/8 children
     Pp      % interpolation from this element to its 2p version		
     Pint
+    Rint
     pcf_idx  % child face indices on interpolated parent volume
   end % properties 
     
@@ -114,6 +115,7 @@ classdef refel < handle
             
 			p_h_1d      = transpose (Vr \ Vph);
       p_h_1d_int      = transpose (Vph_par \ Vph_chl);
+      r_h_1d_int      = transpose (Vph_chl \ Vph_par);
       p_p_1d      = transpose (Vr \ Vpp);  
       
       if (d == 2)
@@ -196,6 +198,11 @@ classdef refel < handle
         elem.Pp = kron(p_p_1d, p_p_1d);
         %% for prolongation 
         elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
+        %------
+        % dP = decomposition(elem.Pint);
+        % elem.Rint = @(u) dP \ u;
+        elem.Rint = transpose(elem.Pint); %kron(kron(r_h_1d_int,r_h_1d_int),r_h_1d_int);%pinv( elem.Pint);
+        %------
         elem.compute_face_nodes();       
       end 
     end % refel constructor

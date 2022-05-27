@@ -1,7 +1,7 @@
 %% Problem specification  
 % discretization
 dim = 3; 
-nelems = [8, 16];
+nelems = [4,8];
 orders = [5];
 
 % operator 
@@ -30,6 +30,8 @@ disp(['Creating h-grid: ' num2str(1) ' of ' num2str(num_grids) ', order = ' num2
 m = mgps.mesh(repmat(nelems(1), 1, dim), xform);
 coarse = mgps.grid(m, orders(1));
 
+cgrid = coarse;
+
 for i=2:num_hgrids
   disp(['Creating h-grid: ' num2str(i) ' of ' num2str(num_grids) ', order = ' num2str(orders(1)) ', nelem = ' num2str(nelems(i))]);
   m = mgps.mesh(repmat(nelems(i), 1, dim), xform);
@@ -51,14 +53,65 @@ end
 grid.assemble_operators(op, mu, rhs, bdy);
 
 grid.is_finest = true;
+grid.Fine = [];
 
 
+
+%% Solve FAS
+
+% u = cgrid.get_u0();
+% while ( ~isempty(cgrid) )
+% %   disp('-------------------------------------');
+% %   fprintf('  Level %d \n', cgrid.level);
+% %   disp('-------------------------------------');
+%   if ( ~isempty(cgrid.Coarse) )
+%     u = cgrid.prolong( u );
+%   end
+%   res = cgrid.residual(cgrid.get_u0());
+%   r1 = norm(res);
+%   u1 = cgrid.smooth(300, cgrid.get_u0());
+%   res = cgrid.residual(u1);
+%   r2 = norm(res);
+% 
+%   res = cgrid.residual(u);
+%   r3 = norm(res);
+%   % [u, rr, iter] = cgrid.solve(20, 'jacobi', 3, 3, u);
+%   u = cgrid.smooth(300, u);
+%   res = cgrid.residual(u);
+%   r4 = norm(res);
+% 
+%   u = u1;
+%   fprintf(' Level %d norms, [%g, %g], [%g, %g]\n', cgrid.level, r1, r2, r3, r4);
+%   cgrid = cgrid.Fine;
+% end
+% 
+% res = grid.residual(u);
+% norm(res)
+% v = grid.solve_leaf(u);
+% grid.plot_skel(u);
 
 %% Solve 
+% 
+
+%grid.Coarse.pfac = .1;
+grid.pfac = 20;
 grid.set_smoother('jacobi');
-
+% 
 u = grid.get_u0();
-fx = grid.get_u0();
+%u = grid.smooth(120, u);
+[u, rr, iter] = grid.solve(20, 'jacobi', 3, 3, u);
 
-% u = grid.smooth(200, fx, u);
-[u, rr, iter] = grid.solve(50, 'jacobi', 3, 3, fx, u);
+% pfr = zeros(100,1);
+% for pf=1451:1470
+%   u = grid.get_u0();
+%   grid.pfac = pf;
+%   [u, rr, iter] = grid.solve(20, 'jacobi', 3, 3, u);
+%   pfr(pf-1450) = rr;
+% end
+% figure,plot(1451:1470, pfr);
+% [m,i] = min(pfr)
+res = grid.residual(u);
+norm(res)
+% v = grid.solve_leaf(u);
+% grid.plot_skel(u);
+% max(v(:))
