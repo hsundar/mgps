@@ -1,0 +1,5 @@
+# Multigrid + HPS
+
+- Mesh : main mesh file, related to setting up operators mesh 
+- Grid : sets up multigrid, has smoothers solve etc
+- refel : reference element, sets up elemental operators.

@@ -460,7 +460,7 @@ classdef mesh < handle
       end
     end
 
-    function r = trace_residual(mesh, u)
+    function r = trace_residual(mesh, u, rhs)
       % function r = trace_residual(mesh, u)
       num_elems  = prod(mesh.nelems);
       
@@ -479,6 +479,11 @@ classdef mesh < handle
         re = mesh.D2N{e}*[u(bdy_idx); 1];
         r(bdy_idx) = r(bdy_idx) - re;
       end % elem loop 
+
+      if (nargin > 2)
+        r = r - rhs;
+      end
+
       bdy_idx = [];
       fid = mesh.get_global_boundary_faces();
       for f=1:length(fid)
@@ -508,6 +513,41 @@ classdef mesh < handle
 
     function clear(mesh)
       mesh.D2N = 0;
+    end
+
+
+    function uc = sync_trace(m, u)
+      % smooth trace across faces ... effectively interpolating across discontinuous faces
+      nnf = m.refel.nnf;
+      fr = sqrt(nnf);
+      uc = u;
+      % x faces
+
+      for i=1:(m.nelems(1)+1)
+        for k=1:(m.nelems(3)-1)
+          for j=(1:m.nelems(2)-1)
+            idx1 = (k-1)*m.nelems(2)*(m.nelems(1)+1) + (j-1)*(m.nelems(1)+1) + (i-1);
+            idx2 = (k-1)*m.nelems(2)*(m.nelems(1)+1) + (j)*(m.nelems(1)+1) + (i-1);
+            idx3 = (k)*m.nelems(2)*(m.nelems(1)+1) + (j-1)*(m.nelems(1)+1) + (i-1);
+            I1 = reshape(u((idx1*nnf+1):(idx1+1)*nnf),fr,fr) ;
+            I2 = reshape(u((idx2*nnf+1):(idx2+1)*nnf),fr,fr) ;
+            I3 = reshape(u((idx3*nnf+1):(idx3+1)*nnf),fr,fr) ;
+            %---
+            rt = I1(end,:);
+            I1(end,:) = rt + I2(1,:);
+            I2(1,:) = I1(end,:);
+            tp = I1(:,end) + I3(:,1);
+            I1(:,end) = tp; I3(:,1) = tp;
+            uc((idx1*nnf+1):(idx1+1)*nnf) = I1(:);
+            uc((idx2*nnf+1):(idx2+1)*nnf) = I2(:);
+            uc((idx3*nnf+1):(idx3+1)*nnf) = I3(:);
+          end % j
+        end % k
+      end  % i
+      % y faces
+
+      % z faces 
+
     end
 
     %%===================================================================
