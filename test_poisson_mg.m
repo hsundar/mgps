@@ -1,8 +1,8 @@
 %% Problem specification  
 % discretization
 dim = 3; 
-nelems = [4,8];
-orders = [5];
+nelems = [8,16];   % [2,4,8,16]
+orders = [5];      % 
 
 % operator 
 op = struct();
@@ -11,8 +11,9 @@ op.dxy = 0; op.dyz = 0; op.dxz = 0;
 op.dx  = 0; op.dy  = 0; op.dz  = 0;
 op.b = 0;
 
-k=3;
-rhs = @(x,y,z) -3*k*k*pi*pi*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z);
+k = 3;
+k2 = 7;
+rhs = @(x,y,z) -3*k*k*pi*pi*sin(k*pi*x).*sin(k*pi*y).*sin(k*pi*z); % + -3*k2*k2*pi*pi*sin(k2*pi*x).*sin(k2*pi*y).*sin(k2*pi*z);
 mu = @(x,y,z)(1);
 bdy = @(x,y,z)(0);
 
@@ -99,7 +100,7 @@ grid.set_smoother('jacobi');
 % 
 u = grid.get_u0();
 %u = grid.smooth(120, u);
-[u, rr, iter] = grid.solve(20, 'jacobi', 3, 3, u);
+[u, rr, iter] = grid.solve(20, 'jacobi', 3, 3, grid.get_u0(), u);
 
 % pfr = zeros(100,1);
 % for pf=1451:1470
@@ -110,7 +111,7 @@ u = grid.get_u0();
 % end
 % figure,plot(1451:1470, pfr);
 % [m,i] = min(pfr)
-res = grid.residual(u);
+res = grid.residual(u, grid.get_u0());
 norm(res)
 % v = grid.solve_leaf(u);
 % grid.plot_skel(u);

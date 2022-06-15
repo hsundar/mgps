@@ -253,7 +253,7 @@ classdef grid < handle
 %             end
             uc = grid.prolong( u_corr_coarse );
             %uc2 = grid.Mesh.sync_trace(uc);
-            u = u - uc2;
+            u = u - uc;
             % u = u - grid.pfac*uc; 
 %             if grid.is_finest
 %             tend = toc(tstart);
