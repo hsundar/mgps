@@ -202,7 +202,7 @@ classdef grid < handle
             if ( isempty( grid.Coarse ) )
                 % u = grid.K \ rhs;
                 %tstart = tic;
-                u = grid.smooth(20, u, rhs);
+                u = grid.smooth(120, u, rhs);
                 %tend = toc(tstart);
                 %fprintf('Coarse(st) time: %f \n', tend);
                 return;
@@ -253,7 +253,7 @@ classdef grid < handle
 %             end
             uc = grid.prolong( u_corr_coarse );
             %uc2 = grid.Mesh.sync_trace(uc);
-            u = u - uc;
+            u = u + uc;
             % u = u - grid.pfac*uc; 
 %             if grid.is_finest
 %             tend = toc(tstart);
@@ -528,13 +528,19 @@ classdef grid < handle
                             for f=1:3 % 3 shared faces with parent
                                 % restrict/prolong
                                 ff = forder(grid.mergemap.ploc(c,f));
-                                rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf)) = rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf)) + transpose(grid.Mesh.refel.Ph{grid.mergemap.igrid(c,f)}) * r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf));
+                                rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf)) = rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf)) + flip(grid.Mesh.refel.Rh{grid.mergemap.igrid(c,f)} * r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)));
                             end
                         end
                     end % i
                 end % j
             end % k
-            %% zero out bdy ?
+            %% zero out bdy
+%             bdy_idx = [];
+%             fid = grid.Coarse.Mesh.get_global_boundary_faces();
+%             for f=1:length(fid)
+%               bdy_idx = [bdy_idx, ((fid(f)-1)*nnf+1):(fid(f)*nnf)];
+%             end
+%             rc(bdy_idx) = 0;
         end % function restrict_old 
 
         function r = prolong(grid, rc)
@@ -571,7 +577,7 @@ classdef grid < handle
                             for f=1:3 
                                 % restrict/prolong
                                 ff = forder(grid.mergemap.ploc(c,f));
-                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = grid.Mesh.refel.Ph{grid.mergemap.igrid(c,f)} * rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf));
+                                r(((fid_c(ff)-1)*nnf+1):(fid_c(ff)*nnf)) = grid.Mesh.refel.Ph{grid.mergemap.igrid(c,f)} * flip(rc(((fid_p(ff)-1)*nnf+1):(fid_p(ff)*nnf)));
                                 % 3 shared faces with parent
 
                                 % 3 shared faces with siblings
@@ -611,7 +617,7 @@ classdef grid < handle
           h1 = mesh(xg,yg,zeros(s+1));
           h1.FaceColor = 'none';
           h1.EdgeColor = 'k';  
-
+          %set(gcf,'unit','norm','position',[0.2 0.2 0.8 0.8])
           title('x=1'); hold off
         %   offset = nelems(3)*nelems(2)*(nelems(1)/2) ;
           subplot(3,3,2);

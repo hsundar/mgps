@@ -2,7 +2,7 @@
 % discretization
 dim = 3; 
 nelems = [8,16];   % [2,4,8,16]
-orders = [5];      % 
+orders = [3];      % 
 
 % operator 
 op = struct();
@@ -100,7 +100,7 @@ grid.set_smoother('jacobi');
 % 
 u = grid.get_u0();
 %u = grid.smooth(120, u);
-[u, rr, iter] = grid.solve(20, 'jacobi', 3, 3, grid.get_u0(), u);
+[u, rr, iter] = grid.solve(10, 'jacobi', 3, 3, grid.get_u0(), u);
 
 % pfr = zeros(100,1);
 % for pf=1451:1470

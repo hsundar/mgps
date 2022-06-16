@@ -51,7 +51,11 @@ classdef refel < handle
 
 
     % Prolongation 
+    p_h_1d
+    r_h_1d
+    r_hby2
     Ph      % interpolation from this element to its 4/8 children
+    Rh
     Pp      % interpolation from this element to its 2p version		
     Pint
     Rint
@@ -76,8 +80,10 @@ classdef refel < handle
 
       % interpolation operators
       r_hby2      = [0.5*(elem.r(2:order) - 1); 0.5*(elem.r(2:order) + 1)];
+      r_hby2      = r_hby2(end:(-1):1);
 
       r_hby2_chl  = [0.5*(elem.r(1:order) - 1); 0.5*(elem.r + 1)];
+      r_hby2_chl  = r_hby2_chl(end:(-1):1);
       
       [~, r_2p]   = mgps.refel.cheb (2*elem.N);
       
@@ -90,7 +96,7 @@ classdef refel < handle
             
       Vph     = zeros (order-1, 2*(order-1));
 			      
-      for i=1:elem.p
+      for i=1:(elem.p-2)
         Vr(i,:)     = mgps.basis.polynomial (elem.r(2:order), 0, 0, i-1);
       %           elem.gradVr(i,:) = homg.basis.gradient (elem.r, 0, 0, i-1);
                 
@@ -98,10 +104,10 @@ classdef refel < handle
       %           elem.gradVg(i,:) = homg.basis.gradient (elem.g, 0, 0, i-1);
                 
         Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);
-        Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
-
-        Vph_par(i,:)    = mgps.basis.polynomial (elem.r, 0, 0, i-1);
-        Vph_chl(i,:)    = mgps.basis.polynomial (r_hby2_chl, 0, 0, i-1);
+%         Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
+% 
+%         Vph_par(i,:)    = mgps.basis.polynomial (elem.r, 0, 0, i-1);
+%         Vph_chl(i,:)    = mgps.basis.polynomial (r_hby2_chl, 0, 0, i-1);
       end
         
       %       elem.Dr     = transpose(elem.Vr \ elem.gradVr);
@@ -113,11 +119,17 @@ classdef refel < handle
             
       %       elem.q1d         = transpose (elem.Vr \ elem.Vg);  
             
-			p_h_1d      = transpose (Vr \ Vph);
-      p_h_1d_int      = transpose (Vph_par \ Vph_chl);
-      r_h_1d_int      = transpose (Vph_chl \ Vph_par);
-      p_p_1d      = transpose (Vr \ Vpp);  
+			p_h_1d      = transpose (Vr \ Vph); % flipud(p_h_1d);
+      r_h_1d      = transpose (Vph \ Vr); % r_h_1d = flipud(r_h_1d);
+
+%       p_h_1d_int      = transpose (Vph_par \ Vph_chl); flipud(p_h_1d_int);
+%       r_h_1d_int      = transpose (Vph_chl \ Vph_par); flipud(r_h_1d_int);
+%       p_p_1d      = transpose (Vr \ Vpp);  flipud(p_p_1d);
       
+      elem.p_h_1d = p_h_1d;
+      elem.r_hby2 = r_hby2;
+      elem.r_h_1d = r_h_1d; 
+
       if (d == 2)
         elem.Dx = kron(I, elem.D);
         elem.Dy = kron(elem.D, I);mm
@@ -191,17 +203,23 @@ classdef refel < handle
         % face interpolations ...
         p1 = p_h_1d(1:end/2,:);
         p2 = p_h_1d(end/2+1:end,:);
+        r1 = r_h_1d(:,1:end/2);
+        r2 = r_h_1d(:,end/2+1:end);
         elem.Ph{1} = kron(p1, p1);
         elem.Ph{3} = kron(p2, p1);
         elem.Ph{2} = kron(p1, p2);
         elem.Ph{4} = kron(p2, p2);
-        elem.Pp = kron(p_p_1d, p_p_1d);
+        elem.Rh{1} = kron(r1, r1);
+        elem.Rh{3} = kron(r2, r1);
+        elem.Rh{2} = kron(r1, r2);
+        elem.Rh{4} = kron(r2, r2);
+%         elem.Pp = kron(p_p_1d, p_p_1d);
         %% for prolongation 
-        elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
+%         elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
         %------
         % dP = decomposition(elem.Pint);
         % elem.Rint = @(u) dP \ u;
-        elem.Rint = transpose(elem.Pint); %kron(kron(r_h_1d_int,r_h_1d_int),r_h_1d_int);%pinv( elem.Pint);
+%         elem.Rint = transpose(elem.Pint); %kron(kron(r_h_1d_int,r_h_1d_int),r_h_1d_int);%pinv( elem.Pint);
         %------
         elem.compute_face_nodes();       
       end 
