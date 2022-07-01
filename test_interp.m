@@ -18,7 +18,7 @@ syp = sy(2:order)
 % plot(r.r(2:order), sxp, 'ro','MarkerSize', 25,'MarkerFaceColor','red');
 
 % child 
-sxc = r.p_h_1d*sxp;
+% sxc = r.p_h_1d*sxp;
 % plot(r.r_hby2, sxc, '-gs','MarkerSize', 25,'MarkerFaceColor','green');
 
 %%---- test 
@@ -40,32 +40,36 @@ imagesc(reshape(sx2,order-1,order-1),[-1,1]); axis equal
 
 %% --- prolongation ---
 
-p1 = r.p_h_1d(1:end/2,:);
-p2 = r.p_h_1d(end/2+1:end,:);
-Ph{1} = kron(p1, p1);
-Ph{3} = kron(p2, p1);
-Ph{2} = kron(p1, p2);
-Ph{4} = kron(p2, p2);
+% p1 = r.p_h_1d(1:end/2,:);
+% p2 = r.p_h_1d(end/2+1:end,:);
+% Ph{1} = kron(p1, p1);
+% Ph{3} = kron(p2, p1);
+% Ph{2} = kron(p1, p2);
+% Ph{4} = kron(p2, p2);
+% 
+% P = kron(r.p_h_1d, r.p_h_1d);
+% sxc2 = P*sx2;
+% subplot(2,3,2);
+% imagesc(reshape(sxc2,2*(order-1),2*(order-1)),[-1,1]); axis equal
 
-P = kron(r.p_h_1d, r.p_h_1d);
-sxc2 = P*sx2;
+sxc2 = r.Pp * sx2;
 subplot(2,3,2);
 imagesc(reshape(sxc2,2*(order-1),2*(order-1)),[-1,1]); axis equal
-
+colorbar
 
 
 
 
 %% --- restriction ---
 
-r1 = r.r_h_1d(:,1:end/2);
-r2 = r.r_h_1d(:,end/2+1:end);
-Rh{1} = kron(r1, r1);
-Rh{3} = kron(r2, r1);
-Rh{2} = kron(r1, r2);
-Rh{4} = kron(r2, r2);
-
-R = kron(r.r_h_1d, r.r_h_1d);
-sxp2 = R*sxc2;
-subplot(2,3,3);
-imagesc(reshape(sxp2,(order-1),(order-1))); axis equal
+% r1 = r.r_h_1d(:,1:end/2);
+% r2 = r.r_h_1d(:,end/2+1:end);
+% Rh{1} = kron(r1, r1);
+% Rh{3} = kron(r2, r1);
+% Rh{2} = kron(r1, r2);
+% Rh{4} = kron(r2, r2);
+% 
+% R = kron(r.r_h_1d, r.r_h_1d);
+% sxp2 = R*sxc2;
+% subplot(2,3,3);
+% imagesc(reshape(sxp2,(order-1),(order-1))); axis equal

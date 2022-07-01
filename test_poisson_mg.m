@@ -1,8 +1,8 @@
 %% Problem specification  
 % discretization
 dim = 3; 
-nelems = [8,16];   % [2,4,8,16]
-orders = [3];      % 
+nelems = [8];   % [2,4,8,16]
+orders = [3,5]; % 2,3,5,9      % 
 
 % operator 
 op = struct();
@@ -52,6 +52,7 @@ end
 
 % Now setup operators
 grid.assemble_operators(op, mu, rhs, bdy);
+%grid.Coarse.compute_base_solution();
 
 grid.is_finest = true;
 grid.Fine = [];
@@ -66,27 +67,53 @@ grid.Fine = [];
 % %   fprintf('  Level %d \n', cgrid.level);
 % %   disp('-------------------------------------');
 %   if ( ~isempty(cgrid.Coarse) )
-%     u = cgrid.prolong( u );
+%     u = cgrid.prolong_p( u );
 %   end
-%   res = cgrid.residual(cgrid.get_u0());
+%   res = cgrid.residual(cgrid.get_u0(), cgrid.get_u0());
 %   r1 = norm(res);
-%   u1 = cgrid.smooth(300, cgrid.get_u0());
-%   res = cgrid.residual(u1);
+%   u1 = cgrid.smooth(50, cgrid.get_u0(), cgrid.get_u0());
+%   res = cgrid.residual(u1, cgrid.get_u0());
 %   r2 = norm(res);
 % 
-%   res = cgrid.residual(u);
+%   res = cgrid.residual(u, cgrid.get_u0());
 %   r3 = norm(res);
 %   % [u, rr, iter] = cgrid.solve(20, 'jacobi', 3, 3, u);
-%   u = cgrid.smooth(300, u);
-%   res = cgrid.residual(u);
+%   u = cgrid.smooth(50, u, cgrid.get_u0());
+%   res = cgrid.residual(u, cgrid.get_u0());
 %   r4 = norm(res);
 % 
-%   u = u1;
+%   %u = cgrid.smooth(200, u, cgrid.get_u0());
+% 
+%   % u = u1;
 %   fprintf(' Level %d norms, [%g, %g], [%g, %g]\n', cgrid.level, r1, r2, r3, r4);
 %   cgrid = cgrid.Fine;
 % end
-% 
-% res = grid.residual(u);
+
+% --- adjust num iterations 
+% tol = 1e-6;
+% while ( ~isempty(cgrid) )
+%   if ( ~isempty(cgrid.Coarse) )
+%     u = cgrid.prolong_p( u );
+%   end
+%   %u = cgrid.get_u0();
+%   res = cgrid.residual(u, cgrid.get_u0());
+%   ri = norm(res);
+%   its = 0;
+%   r = ri;
+%   while (abs(r) > tol )
+%     u = cgrid.smooth(5, u, cgrid.get_u0());
+%     its = its + 5;
+%     res = cgrid.residual(u, cgrid.get_u0());
+%     
+%     r = norm(res);
+%   end
+%   res = cgrid.residual(u, cgrid.get_u0());
+%   rf = norm(res);
+%   fprintf(' Level %d norms, %g, %g, %d iterations\n', cgrid.level, ri, rf, its);
+%   cgrid = cgrid.Fine;
+% end 
+
+% res = grid.residual(u, grid.get_u0());
 % norm(res)
 % v = grid.solve_leaf(u);
 % grid.plot_skel(u);
@@ -99,7 +126,7 @@ grid.pfac = 20;
 grid.set_smoother('jacobi');
 % 
 u = grid.get_u0();
-%u = grid.smooth(120, u);
+% u = grid.smooth(120, u, u);
 [u, rr, iter] = grid.solve(10, 'jacobi', 3, 3, grid.get_u0(), u);
 
 % pfr = zeros(100,1);

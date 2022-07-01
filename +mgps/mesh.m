@@ -460,7 +460,7 @@ classdef mesh < handle
       end
     end
 
-    function r = trace_residual(mesh, u, rhs)
+    function r = trace_residual(mesh, u, rhs, finest)
       % function r = trace_residual(mesh, u)
       num_elems  = prod(mesh.nelems);
       
@@ -476,7 +476,11 @@ classdef mesh < handle
           bdy_idx = [bdy_idx, ((fid(f)-1)*nnf+1):(fid(f)*nnf)];
         end
         %    compute D2N*u 
-        re = mesh.D2N{e}*[u(bdy_idx); 1];
+        if (finest)
+          re = mesh.D2N{e}*[u(bdy_idx); 1];
+        else
+          re = mesh.D2N{e}*[u(bdy_idx); 0];
+        end
         r(bdy_idx) = r(bdy_idx) - re;
       end % elem loop 
 
@@ -492,6 +496,53 @@ classdef mesh < handle
       r(bdy_idx) = 0;
 
     end % trace_residual
+
+    function plot_elem_faces(mesh, u)
+      nelems = mesh.nelems;
+      nnf    = mesh.refel.nnf;
+      fr     = sqrt(nnf);
+
+      % grid
+      xrange = [-1 1]; % imagesc only needs the endpoints
+      yrange = [-1 1];
+      
+      
+      %clf;
+      subplot(2,3,1);
+      idx  =0; % f1
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+  
+      subplot(2,3,2);
+      idx  = 1; % f3
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+      
+      subplot(2,3,4);
+      idx  = 2; % f2
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+
+      subplot(2,3,3);
+      idx  = 3; % f5
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+
+      subplot(2,3,5);
+      idx  = 4; % f4
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+
+      subplot(2,3,6);
+      idx  = 5; % f6
+      I = reshape(u((idx*nnf+1):(idx+1)*nnf),fr,fr);
+      imagesc(xrange,yrange, I);  colorbar; axis equal; 
+
+
+      
+      %set(gcf,'unit','norm','position',[0.2 0.2 0.8 0.8]);
+      
+    end
 
     function u = solve_leaf(mesh, trace)
       num_elems  = prod(mesh.nelems);

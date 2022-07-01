@@ -51,12 +51,13 @@ classdef refel < handle
 
 
     % Prolongation 
-    p_h_1d
-    r_h_1d
-    r_hby2
+    % p_h_1d
+    % r_h_1d
+    % r_hby2
     Ph      % interpolation from this element to its 4/8 children
     Rh
-    Pp      % interpolation from this element to its 2p version		
+    Pp      % interpolation from this element to its 2p version
+    Rp		
     Pint
     Rint
     pcf_idx  % child face indices on interpolated parent volume
@@ -85,7 +86,7 @@ classdef refel < handle
       r_hby2_chl  = [0.5*(elem.r(1:order) - 1); 0.5*(elem.r + 1)];
       r_hby2_chl  = r_hby2_chl(end:(-1):1);
       
-      [~, r_2p]   = mgps.refel.cheb (2*elem.N);
+      [~, r_2p]   = mgps.refel.cheb (2*elem.N-1);
       
       p = elem.p;
       p2 = elem.p*elem.p;
@@ -103,8 +104,8 @@ classdef refel < handle
       %           elem.Vg(i,:)     = homg.basis.polynomial (elem.g, 0, 0, i-1);
       %           elem.gradVg(i,:) = homg.basis.gradient (elem.g, 0, 0, i-1);
                 
-        Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);
-%         Vpp(i,:)    = mgps.basis.polynomial (r_2p,   0, 0, i-1);
+        Vph(i,:)    = mgps.basis.polynomial (r_hby2, 0, 0, i-1);         
+        Vpp(i,:)    = mgps.basis.polynomial (r_2p(2:end-1),   0, 0, i-1);
 % 
 %         Vph_par(i,:)    = mgps.basis.polynomial (elem.r, 0, 0, i-1);
 %         Vph_chl(i,:)    = mgps.basis.polynomial (r_hby2_chl, 0, 0, i-1);
@@ -124,11 +125,12 @@ classdef refel < handle
 
 %       p_h_1d_int      = transpose (Vph_par \ Vph_chl); flipud(p_h_1d_int);
 %       r_h_1d_int      = transpose (Vph_chl \ Vph_par); flipud(r_h_1d_int);
-%       p_p_1d      = transpose (Vr \ Vpp);  flipud(p_p_1d);
-      
-      elem.p_h_1d = p_h_1d;
-      elem.r_hby2 = r_hby2;
-      elem.r_h_1d = r_h_1d; 
+      p_p_1d      = transpose (Vr \ Vpp);  %flipud(p_p_1d);
+      r_p_1d      = transpose (Vpp \ Vr);
+
+      % elem.p_h_1d = p_h_1d;
+      % elem.r_hby2 = r_hby2;
+      % elem.r_h_1d = r_h_1d; 
 
       if (d == 2)
         elem.Dx = kron(I, elem.D);
@@ -212,8 +214,9 @@ classdef refel < handle
         elem.Rh{1} = kron(r1, r1);
         elem.Rh{3} = kron(r2, r1);
         elem.Rh{2} = kron(r1, r2);
-        elem.Rh{4} = kron(r2, r2);
-%         elem.Pp = kron(p_p_1d, p_p_1d);
+        elem.Rh{4} = kron(r2, r2);         
+        elem.Pp = kron(p_p_1d, p_p_1d);
+        elem.Rp = kron(r_p_1d, r_p_1d);
         %% for prolongation 
 %         elem.Pint = kron(kron(p_h_1d_int,p_h_1d_int),p_h_1d_int);
         %------
